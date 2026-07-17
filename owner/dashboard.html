@@ -51,6 +51,12 @@
 
   /* ---------- Dashboard ---------- */
   #dashView{ display:none; padding:16px 16px 60px; max-width:920px; margin:0 auto; }
+  #kitchenView{ display:none; padding:16px 16px 60px; max-width:700px; margin:0 auto; }
+  #riderView{ display:none; padding:16px 16px 60px; max-width:600px; margin:0 auto; }
+  .delivery-card{
+    background:var(--cream); border:1px solid var(--line); border-radius:14px;
+    padding:14px 16px; margin-bottom:12px;
+  }
   .filters{ display:flex; gap:8px; overflow-x:auto; margin-bottom:16px; }
   .filter-tab{
     flex:0 0 auto; padding:8px 14px; border-radius:100px; border:1px solid var(--line);
@@ -90,7 +96,7 @@
   <div class="topbar">
     <div>
       <h1>Nevo Coffee</h1>
-      <div class="sub">Staff Dashboard</div>
+      <div class="sub" id="roleLabel">Staff Dashboard</div>
     </div>
     <button id="signOutBtn" onclick="signOut()">Sign out</button>
   </div>
@@ -108,7 +114,7 @@
     <div class="error-msg" id="loginError"></div>
   </div>
 
-  <!-- ---------------- Dashboard ---------------- -->
+  <!-- ---------------- Dashboard (owner) ---------------- -->
   <div id="dashView">
     <div class="filters" id="filters">
       <div class="filter-tab active" data-filter="all">All</div>
@@ -120,6 +126,18 @@
     <div class="refresh-note">Updates live as new orders come in. <a href="javascript:loadOrders()">Refresh manually</a></div>
   </div>
 
+  <!-- ---------------- Dashboard (kitchen) ---------------- -->
+  <div id="kitchenView">
+    <div id="kitchenWrap"></div>
+    <div class="refresh-note">Updates live as paid orders come in. <a href="javascript:loadKitchenQueue()">Refresh manually</a></div>
+  </div>
+
+  <!-- ---------------- Dashboard (rider) ---------------- -->
+  <div id="riderView">
+    <div id="deliveriesWrap"></div>
+    <div class="refresh-note">Refreshes automatically every 30s. <a href="javascript:loadDeliveries()">Refresh manually</a></div>
+  </div>
+
 <script>
 const CFG = window.NEVO_CONFIG || {};
 const SUPABASE_READY = !!(CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY);
@@ -127,6 +145,8 @@ const sb = SUPABASE_READY ? supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE
 
 let currentFilter = "all";
 let orders = [];
+let currentRole = null;
+let currentStaffName = null;
 
 if(!SUPABASE_READY){
   document.getElementById("configWarning").style.display = "block";
@@ -162,22 +182,45 @@ async function signIn(){
     return;
   }
 
+  currentRole = staffRow.role;
+  currentStaffName = staffRow.full_name;
   showDashboard();
 }
 
 async function signOut(){
   if(sb) await sb.auth.signOut();
   document.getElementById("dashView").style.display = "none";
+  document.getElementById("kitchenView").style.display = "none";
+  document.getElementById("riderView").style.display = "none";
   document.getElementById("loginView").style.display = "block";
   document.getElementById("signOutBtn").style.display = "none";
+  currentRole = null;
 }
 
 function showDashboard(){
   document.getElementById("loginView").style.display = "none";
-  document.getElementById("dashView").style.display = "block";
   document.getElementById("signOutBtn").style.display = "inline-block";
-  loadOrders();
-  subscribeToOrders();
+
+  const labels = { owner: "Owner view — full access", staff: "Kitchen view", rider: "Delivery view" };
+  document.getElementById("roleLabel").textContent = labels[currentRole] || "Staff Dashboard";
+
+  document.getElementById("dashView").style.display = "none";
+  document.getElementById("kitchenView").style.display = "none";
+  document.getElementById("riderView").style.display = "none";
+
+  if(currentRole === "rider"){
+    document.getElementById("riderView").style.display = "block";
+    loadDeliveries();
+    setInterval(loadDeliveries, 30000);
+  }else if(currentRole === "staff"){
+    document.getElementById("kitchenView").style.display = "block";
+    loadKitchenQueue();
+    setInterval(loadKitchenQueue, 20000);
+  }else{
+    document.getElementById("dashView").style.display = "block";
+    loadOrders();
+    subscribeToOrders();
+  }
 }
 
 async function loadOrders(){
@@ -278,11 +321,108 @@ async function setStatus(orderId, status){
   loadOrders();
 }
 
+/* ---------------- Kitchen view ---------------- */
+async function loadKitchenQueue(){
+  const { data, error } = await sb.rpc("get_kitchen_queue");
+  if(error){ console.error(error); return; }
+  renderKitchenQueue(data || []);
+}
+
+function renderKitchenQueue(list){
+  const wrap = document.getElementById("kitchenWrap");
+  if(list.length === 0){
+    wrap.innerHTML = `<div class="empty-state">No orders in the kitchen queue right now.</div>`;
+    return;
+  }
+  wrap.innerHTML = list.map(o => `
+    <div class="order-card">
+      <div class="order-head">
+        <div>
+          <div class="order-code">${o.order_code}</div>
+          <div class="order-time">${timeAgo(o.created_at)} · ${o.fulfilment}</div>
+        </div>
+        <span class="badge" style="background:var(--parchment-2); color:var(--espresso);">${o.order_status.replace(/_/g," ")}</span>
+      </div>
+      <div class="order-detail">
+        ${o.items}
+        ${o.notes ? `<br><i>${o.notes}</i>` : ""}
+      </div>
+      <div class="order-actions">
+        ${o.order_status === 'received' ? `<button class="btn-sm btn-status" onclick="advanceKitchen('${o.id}','preparing')">Start preparing</button>` : ''}
+        ${o.order_status === 'preparing' ? `<button class="btn-sm btn-status" onclick="advanceKitchen('${o.id}','ready')">Mark ready</button>` : ''}
+        ${o.order_status === 'ready' && o.fulfilment === 'delivery' ? `<button class="btn-sm btn-status" onclick="advanceKitchen('${o.id}','out_for_delivery')">Out for delivery</button>` : ''}
+        ${o.order_status === 'ready' && o.fulfilment === 'pickup' ? `<button class="btn-sm btn-mark-paid" onclick="advanceKitchen('${o.id}','completed')">✓ Picked up</button>` : ''}
+      </div>
+    </div>`).join("");
+}
+
+async function advanceKitchen(orderId, newStatus){
+  const { error } = await sb.rpc("kitchen_advance_order", { p_order_id: orderId, p_new_status: newStatus });
+  if(error){ alert("Could not update: " + error.message); return; }
+  loadKitchenQueue();
+}
+
+/* ---------------- Rider view ---------------- */
+async function loadDeliveries(){
+  const { data, error } = await sb.rpc("get_my_deliveries");
+  if(error){ console.error(error); return; }
+  renderDeliveries(data || []);
+}
+
+function renderDeliveries(list){
+  const wrap = document.getElementById("deliveriesWrap");
+  if(list.length === 0){
+    wrap.innerHTML = `<div class="empty-state">No deliveries assigned to you right now.</div>`;
+    return;
+  }
+  wrap.innerHTML = list.map(o => `
+    <div class="delivery-card">
+      <div class="order-head">
+        <div>
+          <div class="order-code">${o.order_code}</div>
+          <div class="order-time">${timeAgo(o.created_at)}</div>
+        </div>
+        <span class="badge" style="background:var(--parchment-2); color:var(--espresso);">${o.order_status.replace(/_/g," ")}</span>
+      </div>
+      <div class="order-detail">
+        <b>${o.customer_name}</b> · <a href="tel:${o.customer_phone}">${o.customer_phone}</a><br>
+        📍 ${o.delivery_address}<br>
+        ${o.items}<br>
+        <b>${money(o.total_ugx)}</b>
+      </div>
+      <div class="order-actions">
+        ${o.order_status === 'ready' ? `<button class="btn-sm btn-status" onclick="advanceDelivery('${o.id}','out_for_delivery')">Start delivery</button>` : ''}
+        ${o.order_status === 'out_for_delivery' ? `<button class="btn-sm btn-mark-paid" onclick="advanceDelivery('${o.id}','completed')">✓ Mark delivered</button>` : ''}
+      </div>
+    </div>`).join("");
+}
+
+async function advanceDelivery(orderId, newStatus){
+  const { error } = await sb.rpc("rider_advance_delivery", { p_order_id: orderId, p_new_status: newStatus });
+  if(error){ alert("Could not update: " + error.message); return; }
+  loadDeliveries();
+}
+
 // Restore session on reload
 (async function boot(){
   if(!SUPABASE_READY) return;
   const { data } = await sb.auth.getSession();
-  if(data.session) showDashboard();
+  if(!data.session) return;
+
+  const { data: staffRow, error: staffErr } = await sb
+    .from("staff")
+    .select("full_name, role, is_active")
+    .eq("id", data.session.user.id)
+    .single();
+
+  if(staffErr || !staffRow || !staffRow.is_active){
+    await sb.auth.signOut();
+    return;
+  }
+
+  currentRole = staffRow.role;
+  currentStaffName = staffRow.full_name;
+  showDashboard();
 })();
 </script>
 </body>
