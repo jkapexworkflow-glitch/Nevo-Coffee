@@ -853,7 +853,10 @@ async function placeOrder(){
 
   if(SUPABASE_READY){
     try{
-      const { data: orderRow, error: orderErr } = await sb.from("orders").insert({
+      const orderUuid = crypto.randomUUID();
+
+      const { error: orderErr } = await sb.from("orders").insert({
+        id: orderUuid,
         order_code: orderCode,
         customer_name: name,
         customer_phone: phone,
@@ -864,11 +867,11 @@ async function placeOrder(){
         payment_method: payMethod,
         payment_status: "pending",
         order_status: "received",
-      }).select().single();
+      });
       if(orderErr) throw orderErr;
 
       const itemRows = Object.values(cart).map(c => ({
-        order_id: orderRow.id,
+        order_id: orderUuid,
         menu_item_id: typeof c.item.id === "string" && c.item.id.length === 36 ? c.item.id : null,
         item_name_snapshot: c.item.name,
         unit_price_ugx: c.item.price,
