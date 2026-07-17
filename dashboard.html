@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nevo Coffee — Staff Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="../config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  :root{
+    --espresso:#2B1B14; --parchment:#E8DCC4; --parchment-2:#F1E9D8;
+    --gold:#C08A3E; --sage:#4B5D46; --cream:#F5EFE3; --line:rgba(43,27,20,0.14);
+    --red:#B3432B; --green:#3F7A4F;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{font-family:'Sora', sans-serif; background:var(--parchment); color:var(--espresso); min-height:100vh;}
+  h1,h2,h3{font-family:'Fraunces', serif;}
+
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 20px; background:var(--espresso); color:var(--cream);
+  }
+  .topbar h1{ font-size:18px; }
+  .topbar .sub{ font-size:11px; color:var(--gold); letter-spacing:0.06em; text-transform:uppercase; }
+  #signOutBtn{
+    background:transparent; border:1px solid rgba(245,239,227,0.35); color:var(--cream);
+    border-radius:100px; padding:7px 14px; font-size:12px; cursor:pointer; display:none;
+  }
+
+  /* ---------- Login ---------- */
+  #loginView{
+    max-width:360px; margin:60px auto; padding:0 20px;
+  }
+  #loginView h2{ font-size:22px; margin-bottom:6px; }
+  #loginView p{ font-size:12.5px; color:#6b5d4f; margin-bottom:20px; line-height:1.5; }
+  .field{ margin-bottom:14px; }
+  .field label{ display:block; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--sage); margin-bottom:6px; }
+  .field input{ width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:10px; background:var(--parchment-2); font-size:13.5px; font-family:inherit; }
+  .btn-primary{
+    width:100%; background:var(--espresso); color:var(--cream); border:none; border-radius:100px;
+    padding:13px; font-size:14px; font-weight:700; cursor:pointer; font-family:'Sora',sans-serif;
+  }
+  .btn-primary:disabled{ opacity:0.5; }
+  .error-msg{ color:var(--red); font-size:12px; margin-top:10px; display:none; }
+  .config-warning{
+    background:#F1E4C4; border:1px solid var(--gold); border-radius:10px; padding:12px 14px;
+    font-size:12px; line-height:1.5; margin-bottom:18px;
+  }
+
+  /* ---------- Dashboard ---------- */
+  #dashView{ display:none; padding:16px 16px 60px; max-width:920px; margin:0 auto; }
+  .filters{ display:flex; gap:8px; overflow-x:auto; margin-bottom:16px; }
+  .filter-tab{
+    flex:0 0 auto; padding:8px 14px; border-radius:100px; border:1px solid var(--line);
+    background:var(--parchment-2); font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap;
+  }
+  .filter-tab.active{ background:var(--espresso); color:var(--cream); border-color:var(--espresso); }
+
+  .order-card{
+    background:var(--cream); border:1px solid var(--line); border-radius:14px;
+    padding:14px 16px; margin-bottom:12px;
+  }
+  .order-head{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; }
+  .order-code{ font-family:'Fraunces', serif; font-size:17px; font-weight:700; }
+  .order-time{ font-size:11px; color:#8a7a68; }
+  .badge{
+    display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase;
+    letter-spacing:0.04em; padding:4px 9px; border-radius:100px; margin-right:6px; margin-bottom:4px;
+  }
+  .badge.pending{ background:#F1E4C4; color:#7A5A16; }
+  .badge.paid{ background:#DCEFDD; color:var(--green); }
+  .badge.failed, .badge.refunded{ background:#F5D9D0; color:var(--red); }
+  .order-detail{ font-size:12.5px; line-height:1.6; color:#4a3c30; margin:8px 0; }
+  .order-actions{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  .btn-sm{
+    border:none; border-radius:100px; padding:8px 14px; font-size:12px; font-weight:700; cursor:pointer;
+    font-family:'Sora', sans-serif;
+  }
+  .btn-mark-paid{ background:var(--green); color:var(--cream); }
+  .btn-status{ background:var(--espresso); color:var(--cream); }
+  .btn-status.secondary{ background:var(--parchment-2); color:var(--espresso); border:1px solid var(--line); }
+  .empty-state{ text-align:center; padding:60px 20px; color:#8a7a68; font-size:13px; }
+  .refresh-note{ font-size:11px; color:#8a7a68; text-align:center; margin-top:10px; }
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div>
+      <h1>Nevo Coffee</h1>
+      <div class="sub">Staff Dashboard</div>
+    </div>
+    <button id="signOutBtn" onclick="signOut()">Sign out</button>
+  </div>
+
+  <!-- ---------------- Login ---------------- -->
+  <div id="loginView">
+    <h2>Staff sign in</h2>
+    <p>Access is restricted to Nevo staff accounts created in Supabase (Authentication → Users), linked to a row in the <code>staff</code> table. See <code>/supabase/schema.sql</code> for setup.</p>
+    <div id="configWarning" class="config-warning" style="display:none;">
+      Supabase isn't configured yet in <code>config.js</code>. This dashboard can't sign in or load orders until <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> are filled in.
+    </div>
+    <div class="field"><label>Email</label><input id="loginEmail" type="email" placeholder="owner@nevocoffee.co.ug"></div>
+    <div class="field"><label>Password</label><input id="loginPassword" type="password" placeholder="••••••••"></div>
+    <button class="btn-primary" id="loginBtn" onclick="signIn()">Sign in</button>
+    <div class="error-msg" id="loginError"></div>
+  </div>
+
+  <!-- ---------------- Dashboard ---------------- -->
+  <div id="dashView">
+    <div class="filters" id="filters">
+      <div class="filter-tab active" data-filter="all">All</div>
+      <div class="filter-tab" data-filter="pending">Payment pending</div>
+      <div class="filter-tab" data-filter="paid">Paid</div>
+      <div class="filter-tab" data-filter="active">Active orders</div>
+    </div>
+    <div id="ordersWrap"></div>
+    <div class="refresh-note">Updates live as new orders come in. <a href="javascript:loadOrders()">Refresh manually</a></div>
+  </div>
+
+<script>
+const CFG = window.NEVO_CONFIG || {};
+const SUPABASE_READY = !!(CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY);
+const sb = SUPABASE_READY ? supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY) : null;
+
+let currentFilter = "all";
+let orders = [];
+
+if(!SUPABASE_READY){
+  document.getElementById("configWarning").style.display = "block";
+  document.getElementById("loginBtn").disabled = true;
+}
+
+async function signIn(){
+  const email = document.getElementById("loginEmail").value.trim();
+  const password = document.getElementById("loginPassword").value;
+  const errEl = document.getElementById("loginError");
+  errEl.style.display = "none";
+
+  if(!SUPABASE_READY) return;
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if(error){
+    errEl.textContent = error.message;
+    errEl.style.display = "block";
+    return;
+  }
+
+  // Confirm this user is active staff before granting dashboard access
+  const { data: staffRow, error: staffErr } = await sb
+    .from("staff")
+    .select("full_name, role, is_active")
+    .eq("id", data.user.id)
+    .single();
+
+  if(staffErr || !staffRow || !staffRow.is_active){
+    errEl.textContent = "This account isn't set up as active staff. Ask the owner to add you in Supabase → staff table.";
+    errEl.style.display = "block";
+    await sb.auth.signOut();
+    return;
+  }
+
+  showDashboard();
+}
+
+async function signOut(){
+  if(sb) await sb.auth.signOut();
+  document.getElementById("dashView").style.display = "none";
+  document.getElementById("loginView").style.display = "block";
+  document.getElementById("signOutBtn").style.display = "none";
+}
+
+function showDashboard(){
+  document.getElementById("loginView").style.display = "none";
+  document.getElementById("dashView").style.display = "block";
+  document.getElementById("signOutBtn").style.display = "inline-block";
+  loadOrders();
+  subscribeToOrders();
+}
+
+async function loadOrders(){
+  const { data, error } = await sb
+    .from("orders")
+    .select("*, order_items(item_name_snapshot, qty, unit_price_ugx)")
+    .order("created_at", { ascending: false })
+    .limit(100);
+  if(error){ console.error(error); return; }
+  orders = data;
+  renderOrders();
+}
+
+function subscribeToOrders(){
+  sb.channel("orders-live")
+    .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => loadOrders())
+    .subscribe();
+}
+
+document.getElementById("filters").addEventListener("click", (e) => {
+  const tab = e.target.closest(".filter-tab");
+  if(!tab) return;
+  document.querySelectorAll(".filter-tab").forEach(t => t.classList.remove("active"));
+  tab.classList.add("active");
+  currentFilter = tab.dataset.filter;
+  renderOrders();
+});
+
+function filteredOrders(){
+  if(currentFilter === "pending") return orders.filter(o => o.payment_status === "pending");
+  if(currentFilter === "paid") return orders.filter(o => o.payment_status === "paid");
+  if(currentFilter === "active") return orders.filter(o => !["completed","cancelled"].includes(o.order_status));
+  return orders;
+}
+
+function money(n){ return "UGX " + Number(n).toLocaleString("en-UG"); }
+function timeAgo(iso){
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if(mins < 1) return "just now";
+  if(mins < 60) return mins + "m ago";
+  return Math.round(mins/60) + "h ago";
+}
+
+function renderOrders(){
+  const wrap = document.getElementById("ordersWrap");
+  const list = filteredOrders();
+  if(list.length === 0){
+    wrap.innerHTML = `<div class="empty-state">No orders in this view.</div>`;
+    return;
+  }
+  wrap.innerHTML = list.map(o => {
+    const items = (o.order_items || []).map(i => `${i.qty}x ${i.item_name_snapshot}`).join(", ");
+    return `
+      <div class="order-card">
+        <div class="order-head">
+          <div>
+            <div class="order-code">${o.order_code}</div>
+            <div class="order-time">${timeAgo(o.created_at)} · ${o.fulfilment}</div>
+          </div>
+          <div style="text-align:right;">
+            <span class="badge ${o.payment_status}">${o.payment_status}</span><br>
+            <span class="badge" style="background:var(--parchment-2); color:var(--espresso);">${o.order_status.replace(/_/g," ")}</span>
+          </div>
+        </div>
+        <div class="order-detail">
+          <b>${o.customer_name}</b> · ${o.customer_phone}<br>
+          ${items}<br>
+          <b>${money(o.total_ugx)}</b> · ${o.payment_method}${o.fulfilment==='delivery' ? '<br>📍 ' + o.delivery_address : ''}
+        </div>
+        <div class="order-actions">
+          ${o.payment_status === 'pending' ? `<button class="btn-sm btn-mark-paid" onclick="markPaid('${o.id}')">✓ Mark payment received</button>` : ''}
+          ${o.order_status === 'received' ? `<button class="btn-sm btn-status" onclick="setStatus('${o.id}','preparing')">Start preparing</button>` : ''}
+          ${o.order_status === 'preparing' ? `<button class="btn-sm btn-status" onclick="setStatus('${o.id}','ready')">Mark ready</button>` : ''}
+          ${o.order_status === 'ready' && o.fulfilment === 'delivery' ? `<button class="btn-sm btn-status" onclick="setStatus('${o.id}','out_for_delivery')">Out for delivery</button>` : ''}
+          ${['ready','out_for_delivery'].includes(o.order_status) ? `<button class="btn-sm btn-status" onclick="setStatus('${o.id}','completed')">Mark completed</button>` : ''}
+          ${!['completed','cancelled'].includes(o.order_status) ? `<button class="btn-sm btn-status secondary" onclick="setStatus('${o.id}','cancelled')">Cancel</button>` : ''}
+        </div>
+      </div>`;
+  }).join("");
+}
+
+// Staff-only action: confirms payment. RLS on the `orders` table only allows
+// staff (is_staff()) to UPDATE rows — customers/anon can never call this.
+async function markPaid(orderId){
+  const { data: { user } } = await sb.auth.getUser();
+  const { error } = await sb.from("orders").update({
+    payment_status: "paid",
+    payment_confirmed_by: user.id,
+    payment_confirmed_at: new Date().toISOString(),
+  }).eq("id", orderId);
+  if(error){ alert("Could not update: " + error.message); return; }
+  loadOrders();
+}
+
+async function setStatus(orderId, status){
+  const { error } = await sb.from("orders").update({ order_status: status }).eq("id", orderId);
+  if(error){ alert("Could not update: " + error.message); return; }
+  loadOrders();
+}
+
+// Restore session on reload
+(async function boot(){
+  if(!SUPABASE_READY) return;
+  const { data } = await sb.auth.getSession();
+  if(data.session) showDashboard();
+})();
+</script>
+</body>
+</html>
