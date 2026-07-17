@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nevo Coffee & Co. — Order Online</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Site config: Supabase URL/key, WhatsApp number, fallback payment codes -->
+<script src="config.js"></script>
+<!-- Supabase client (only actually connects once config.js has real credentials) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  :root{
+    --espresso:#2B1B14;
+    --espresso-2:#3D291D;
+    --parchment:#E8DCC4;
+    --parchment-2:#F1E9D8;
+    --gold:#C08A3E;
+    --gold-dark:#9C6E2E;
+    --sage:#4B5D46;
+    --sage-light:#6B7F62;
+    --cream:#F5EFE3;
+    --line:rgba(43,27,20,0.14);
+    --shadow: 0 10px 30px rgba(43,27,20,0.18);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    font-family:'Sora', sans-serif;
+    background:var(--parchment);
+    color:var(--espresso);
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.display{
+    font-family:'Fraunces', serif;
+    letter-spacing:-0.01em;
+  }
+  a{color:inherit;}
+  img{display:block; width:100%; height:100%; object-fit:cover;}
+
+  /* ---------- Top bar ---------- */
+  .topbar{
+    position:sticky; top:0; z-index:40;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 20px;
+    background:rgba(232,220,196,0.92);
+    backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);
+  }
+  .brand{
+    display:flex; align-items:center; gap:10px;
+  }
+  .brand-mark{
+    width:34px; height:34px; border-radius:50%;
+    background:var(--espresso);
+    display:flex; align-items:center; justify-content:center;
+    color:var(--gold);
+    font-family:'Fraunces', serif; font-weight:700; font-size:16px;
+  }
+  .brand-name{font-family:'Fraunces', serif; font-weight:700; font-size:17px;}
+  .brand-sub{font-size:10.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--sage); font-weight:600;}
+
+  .cart-btn{
+    position:relative;
+    background:var(--espresso);
+    color:var(--cream);
+    border:none;
+    border-radius:100px;
+    padding:10px 16px 10px 14px;
+    display:flex; align-items:center; gap:8px;
+    font-family:'Sora', sans-serif;
+    font-weight:600; font-size:13px;
+    cursor:pointer;
+  }
+  .cart-count{
+    background:var(--gold);
+    color:var(--espresso);
+    min-width:20px; height:20px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:11px; font-weight:700;
+  }
+
+  /* ---------- Hero ---------- */
+  .hero{
+    position:relative;
+    padding:0;
+    overflow:hidden;
+    background:var(--espresso);
+    color:var(--cream);
+  }
+  .hero-media{
+    position:relative;
+    height:280px;
+    filter:saturate(0.9) brightness(0.55);
+  }
+  .hero-media img{ }
+  .hero-overlay{
+    position:absolute; inset:0;
+    background:linear-gradient(180deg, rgba(43,27,20,0.15) 0%, rgba(43,27,20,0.95) 88%);
+  }
+  .hero-content{
+    position:relative;
+    margin-top:-70px;
+    padding:0 20px 26px;
+  }
+  .eyebrow{
+    display:inline-block;
+    font-size:11px; letter-spacing:0.16em; text-transform:uppercase;
+    color:var(--gold);
+    font-weight:700;
+    margin-bottom:10px;
+  }
+  .hero h1{
+    font-size:34px; line-height:1.05; font-weight:700;
+    color:var(--cream);
+    margin-bottom:10px;
+  }
+  .hero h1 em{
+    font-style:italic; color:var(--gold); font-weight:500;
+  }
+  .hero p.tag{
+    font-size:14px; color:rgba(245,239,227,0.78);
+    max-width:38ch; margin-bottom:18px;
+    line-height:1.55;
+  }
+  .hero-meta{
+    display:flex; flex-wrap:wrap; gap:10px;
+  }
+  .meta-chip{
+    display:flex; align-items:center; gap:6px;
+    background:rgba(245,239,227,0.08);
+    border:1px solid rgba(245,239,227,0.18);
+    border-radius:100px;
+    padding:7px 12px;
+    font-size:12px;
+    color:var(--cream);
+  }
+  .meta-chip b{color:var(--gold);}
+  .meta-chip a{text-decoration:underline; text-underline-offset:2px;}
+
+  /* ---------- Section headers ---------- */
+  .section{ padding:34px 20px 6px; }
+  .section-head{
+    display:flex; align-items:baseline; justify-content:space-between;
+    margin-bottom:16px;
+  }
+  .section-head h2{
+    font-size:22px; font-weight:600;
+  }
+  .section-num{
+    font-size:11px; color:var(--sage); font-weight:700; letter-spacing:0.1em;
+  }
+
+  /* ---------- Category tabs ---------- */
+  .tabs{
+    display:flex; gap:8px; overflow-x:auto;
+    padding-bottom:4px; margin-bottom:18px;
+    scrollbar-width:none;
+  }
+  .tabs::-webkit-scrollbar{display:none;}
+  .tab{
+    flex:0 0 auto;
+    padding:8px 15px;
+    border-radius:100px;
+    border:1px solid var(--line);
+    background:var(--parchment-2);
+    font-size:12.5px; font-weight:600;
+    cursor:pointer;
+    white-space:nowrap;
+    color:var(--espresso-2);
+    transition:all .15s ease;
+  }
+  .tab.active{
+    background:var(--espresso);
+    color:var(--cream);
+    border-color:var(--espresso);
+  }
+
+  /* ---------- Product grid ---------- */
+  .menu-group{ margin-bottom:8px; }
+  .menu-group-title{
+    font-family:'Fraunces', serif;
+    font-size:15px; font-weight:600;
+    color:var(--sage);
+    margin:22px 0 12px;
+    display:flex; align-items:center; gap:10px;
+  }
+  .menu-group-title::after{
+    content:''; flex:1; height:1px; background:var(--line);
+  }
+  .grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+  }
+  .card{
+    background:var(--parchment-2);
+    border:1px solid var(--line);
+    border-radius:16px;
+    overflow:hidden;
+    cursor:pointer;
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .card:active{ transform:scale(0.97); }
+  .card-img{ height:104px; position:relative; background:var(--espresso-2); }
+  .card-img img{ opacity:0.96; }
+  .card-add{
+    position:absolute; right:8px; bottom:-14px;
+    width:32px; height:32px; border-radius:50%;
+    background:var(--gold);
+    color:var(--espresso);
+    display:flex; align-items:center; justify-content:center;
+    font-size:18px; font-weight:700;
+    box-shadow:0 4px 10px rgba(43,27,20,0.3);
+    border:2px solid var(--parchment-2);
+  }
+  .card-body{ padding:18px 12px 12px; }
+  .card-name{ font-size:13.5px; font-weight:700; margin-bottom:3px; }
+  .card-desc{ font-size:11px; color:#6b5d4f; line-height:1.4; margin-bottom:8px; height:28px; overflow:hidden;}
+  .card-price{ font-size:13px; font-weight:700; color:var(--gold-dark); font-family:'Fraunces', serif; }
+
+  /* ---------- About / location ---------- */
+  .about-box{
+    background:var(--espresso);
+    color:var(--cream);
+    border-radius:18px;
+    padding:22px 18px;
+    margin:28px 20px 0;
+  }
+  .about-box h3{ font-size:18px; margin-bottom:8px; }
+  .about-box p{ font-size:12.5px; color:rgba(245,239,227,0.72); line-height:1.6; margin-bottom:14px; }
+  .hours-grid{
+    display:grid; grid-template-columns:1fr 1fr; gap:6px 14px;
+    font-size:11.5px; color:rgba(245,239,227,0.85);
+    margin-bottom:16px;
+    border-top:1px solid rgba(245,239,227,0.14);
+    padding-top:12px;
+  }
+  .hours-grid div span{ color:var(--gold); font-weight:600; }
+  .about-actions{ display:flex; gap:10px; flex-wrap:wrap; }
+  .btn-outline{
+    border:1px solid rgba(245,239,227,0.35);
+    color:var(--cream);
+    background:transparent;
+    border-radius:100px;
+    padding:9px 15px;
+    font-size:12px; font-weight:600;
+    text-decoration:none;
+  }
+
+  footer{
+    text-align:center;
+    padding:30px 20px 100px;
+    font-size:11px;
+    color:#8a7a68;
+  }
+
+  /* ---------- Cart drawer ---------- */
+  .scrim{
+    position:fixed; inset:0; background:rgba(43,27,20,0.5);
+    opacity:0; pointer-events:none; transition:opacity .25s ease;
+    z-index:50;
+  }
+  .scrim.show{ opacity:1; pointer-events:auto; }
+
+  .drawer{
+    position:fixed; right:0; top:0; bottom:0;
+    width:100%; max-width:400px;
+    background:var(--parchment);
+    z-index:60;
+    transform:translateX(100%);
+    transition:transform .3s cubic-bezier(.4,0,.2,1);
+    display:flex; flex-direction:column;
+    box-shadow:-10px 0 30px rgba(0,0,0,0.2);
+  }
+  .drawer.show{ transform:translateX(0); }
+  .drawer-head{
+    padding:18px 18px 14px;
+    border-bottom:1px dashed var(--line);
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .drawer-head h3{ font-size:18px; }
+  .drawer-close{
+    background:none; border:none; font-size:22px; cursor:pointer; color:var(--espresso);
+    line-height:1;
+  }
+  .drawer-body{ flex:1; overflow-y:auto; padding:6px 18px; }
+  .cart-empty{
+    text-align:center; padding:60px 20px; color:#8a7a68; font-size:13px;
+  }
+  .cart-item{
+    display:flex; gap:12px;
+    padding:14px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .cart-item img{ width:56px; height:56px; border-radius:10px; }
+  .cart-item-info{ flex:1; }
+  .cart-item-name{ font-size:13px; font-weight:700; margin-bottom:2px; }
+  .cart-item-price{ font-size:12px; color:var(--gold-dark); font-weight:600; }
+  .qty-control{
+    display:flex; align-items:center; gap:10px; margin-top:8px;
+  }
+  .qty-btn{
+    width:24px; height:24px; border-radius:50%;
+    border:1px solid var(--line); background:var(--parchment-2);
+    font-size:14px; font-weight:700; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--espresso);
+  }
+  .qty-val{ font-size:12.5px; font-weight:700; min-width:14px; text-align:center; }
+
+  .drawer-foot{
+    padding:16px 18px 22px;
+    border-top:1px dashed var(--line);
+    background:var(--parchment-2);
+  }
+  .total-row{
+    display:flex; justify-content:space-between;
+    font-size:14px; margin-bottom:14px;
+  }
+  .total-row b{ font-family:'Fraunces', serif; font-size:19px; }
+  .btn-primary{
+    width:100%;
+    background:var(--espresso);
+    color:var(--cream);
+    border:none;
+    border-radius:100px;
+    padding:14px;
+    font-size:14px; font-weight:700;
+    cursor:pointer;
+    font-family:'Sora', sans-serif;
+  }
+  .btn-primary:disabled{ opacity:0.4; }
+
+  /* ---------- Checkout modal ---------- */
+  .modal-scrim{
+    position:fixed; inset:0; background:rgba(43,27,20,0.55);
+    z-index:70; display:none;
+    align-items:flex-end;
+    justify-content:center;
+  }
+  .modal-scrim.show{ display:flex; }
+  .modal{
+    background:var(--cream);
+    width:100%; max-width:420px;
+    border-radius:22px 22px 0 0;
+    padding:22px 20px 26px;
+    max-height:88vh; overflow-y:auto;
+    animation:slideUp .3s ease;
+  }
+  @keyframes slideUp{ from{ transform:translateY(30px); opacity:0;} to{ transform:translateY(0); opacity:1;} }
+  .modal h3{ font-size:19px; margin-bottom:4px; }
+  .modal .sub{ font-size:12px; color:#6b5d4f; margin-bottom:18px; }
+  .field{ margin-bottom:14px; }
+  .field label{
+    display:block; font-size:11px; font-weight:700; text-transform:uppercase;
+    letter-spacing:0.06em; color:var(--sage); margin-bottom:6px;
+  }
+  .field input, .field select, .field textarea{
+    width:100%; padding:11px 12px;
+    border:1px solid var(--line); border-radius:10px;
+    font-family:'Sora', sans-serif; font-size:13.5px;
+    background:var(--parchment-2);
+    color:var(--espresso);
+  }
+  .field textarea{ resize:none; height:56px; }
+
+  .pay-options{ display:flex; flex-direction:column; gap:8px; }
+  .pay-opt{
+    display:flex; align-items:center; gap:10px;
+    border:1.5px solid var(--line);
+    border-radius:12px;
+    padding:11px 12px;
+    cursor:pointer;
+    font-size:13px; font-weight:600;
+  }
+  .pay-opt input{ accent-color:var(--espresso); width:16px; height:16px; }
+  .pay-opt.selected{ border-color:var(--espresso); background:var(--parchment-2); }
+  .pay-icon{ font-size:18px; }
+
+  .fulfil-toggle{
+    display:flex; gap:8px; margin-bottom:16px;
+  }
+  .fulfil-opt{
+    flex:1; text-align:center;
+    padding:10px; border-radius:10px;
+    border:1.5px solid var(--line);
+    font-size:12.5px; font-weight:700;
+    cursor:pointer;
+  }
+  .fulfil-opt.selected{ background:var(--espresso); color:var(--cream); border-color:var(--espresso); }
+
+  /* ---------- Confirmation ---------- */
+  .confirm-icon{
+    width:60px; height:60px; border-radius:50%;
+    background:var(--sage); color:var(--cream);
+    display:flex; align-items:center; justify-content:center;
+    font-size:28px; margin:6px auto 16px;
+  }
+  .confirm-id{
+    text-align:center; font-family:'Fraunces', serif; font-size:22px; margin-bottom:4px;
+  }
+  .whatsapp-btn{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    width:100%;
+    background:#3D291D;
+    color:var(--cream);
+    border:none; border-radius:100px;
+    padding:14px; font-size:13.5px; font-weight:700;
+    cursor:pointer; margin-top:16px;
+    text-decoration:none;
+  }
+  .disclaimer{
+    font-size:10.5px; color:#8a7a68; text-align:center; margin-top:14px; line-height:1.5;
+  }
+
+  /* ---------- Payment instructions (MoMo / Airtel) ---------- */
+  .pay-instructions{
+    background:var(--parchment-2);
+    border:1.5px dashed var(--gold);
+    border-radius:12px;
+    padding:14px;
+    margin-top:2px;
+    margin-bottom:14px;
+    font-size:12.5px;
+    line-height:1.6;
+  }
+  .pay-instructions .code-row{
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--cream); border-radius:8px;
+    padding:9px 11px; margin-top:8px;
+  }
+  .pay-instructions .code-row b{
+    font-family:'Fraunces', serif; font-size:16px; letter-spacing:0.02em;
+  }
+  .pay-instructions .copy-btn{
+    background:var(--espresso); color:var(--cream);
+    border:none; border-radius:100px;
+    font-size:11px; font-weight:700; padding:6px 11px; cursor:pointer;
+  }
+  .pending-badge{
+    display:inline-flex; align-items:center; gap:6px;
+    background:#F1E4C4; color:#7A5A16;
+    border-radius:100px; padding:6px 12px;
+    font-size:11.5px; font-weight:700; margin:10px auto 0; width:fit-content;
+  }
+  .conn-banner{
+    background:#3D291D; color:var(--gold);
+    font-size:10.5px; text-align:center; padding:6px 10px;
+    display:none;
+  }
+  .conn-banner.show{ display:block; }
+
+  @media (min-width:640px){
+    .grid{ grid-template-columns:1fr 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="conn-banner" id="connBanner">Demo mode — Supabase not yet connected. Orders are stored locally only.</div>
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark">N</div>
+      <div>
+        <div class="brand-name">Nevo Coffee & Co.</div>
+        <div class="brand-sub">Tank Hill Rd · Kampala</div>
+      </div>
+    </div>
+    <button class="cart-btn" onclick="openCart()">
+      Cart <span class="cart-count" id="cartCount">0</span>
+    </button>
+  </div>
+
+  <div class="hero">
+    <div class="hero-media">
+      <img src="https://commons.wikimedia.org/wiki/Special:FilePath/Inside_Bridgehead_Coffee_Shop_%2829685669166%29.jpg?width=900" alt="Coffee shop interior">
+      <div class="hero-overlay"></div>
+    </div>
+    <div class="hero-content">
+      <span class="eyebrow">Order ahead · Ready in 15 min</span>
+      <h1>Good coffee,<br><em>no queue.</em></h1>
+      <p class="tag">Hand-pulled espresso and fresh bakes from our Tank Hill roastery. Tap a cup below, we'll have it waiting — or send it to your door.</p>
+      <div class="hero-meta">
+        <div class="meta-chip">★ <b>4.1</b>&nbsp;(27)</div>
+        <div class="meta-chip">Open · <b>7:00 AM – 11:00 PM</b></div>
+        <div class="meta-chip"><a href="https://maps.app.goo.gl/wHWXtPjaEFYRPEqZA" target="_blank">📍 Get directions</a></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      <h2>The Menu</h2>
+      <span class="section-num">04 CATEGORIES</span>
+    </div>
+    <div class="tabs" id="tabs"></div>
+    <div id="menuWrap"></div>
+  </div>
+
+  <div class="about-box">
+    <h3>Visit the roastery</h3>
+    <p>Nevo Coffee & Co., 44 Tank Hill Rd, Kampala. Halal menu available. Dine-in, takeaway and delivery across the city.</p>
+    <div class="hours-grid">
+      <div>Mon – Thu <span>7:00 AM – 10:00 PM</span></div>
+      <div>Fri – Sun <span>7:00 AM – 11:00 PM</span></div>
+    </div>
+    <div class="about-actions">
+      <a class="btn-outline" href="https://maps.app.goo.gl/wHWXtPjaEFYRPEqZA" target="_blank">View on Google Maps</a>
+      <a class="btn-outline" href="https://wa.me/256700000000" target="_blank">Message us on WhatsApp</a>
+    </div>
+  </div>
+
+  <footer>
+    Nevo Coffee & Co. — ordering platform built by Jakim Digital Solutions.<br>
+    Prices are estimates for demo purposes. Photos: Wikimedia Commons (for demo only — swap for Nevo's own photos before going live).<br>
+    <a href="legal/terms.html">Terms</a> · <a href="legal/privacy.html">Privacy</a> · <a href="legal/refund.html">Refunds</a> · <a href="owner/dashboard.html">Staff login</a>
+  </footer>
+
+  <!-- Cart drawer -->
+  <div class="scrim" id="scrim" onclick="closeCart()"></div>
+  <div class="drawer" id="drawer">
+    <div class="drawer-head">
+      <h3>Your order</h3>
+      <button class="drawer-close" onclick="closeCart()">×</button>
+    </div>
+    <div class="drawer-body" id="drawerBody"></div>
+    <div class="drawer-foot">
+      <div class="total-row"><span>Total</span><b id="cartTotal">UGX 0</b></div>
+      <button class="btn-primary" id="checkoutBtn" onclick="openCheckout()" disabled>Checkout</button>
+    </div>
+  </div>
+
+  <!-- Checkout modal -->
+  <div class="modal-scrim" id="checkoutScrim">
+    <div class="modal" id="checkoutModal"></div>
+  </div>
+
+<script>
+/* =====================================================================
+   Supabase client
+   Falls back to demo mode automatically if config.js hasn't been filled
+   in yet — nothing below throws or breaks either way.
+   ===================================================================== */
+const CFG = window.NEVO_CONFIG || {};
+const SUPABASE_READY = !!(CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY);
+const sb = SUPABASE_READY
+  ? supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY)
+  : null;
+
+if(!SUPABASE_READY){
+  document.getElementById("connBanner").classList.add("show");
+}
+
+const money = n => "UGX " + n.toLocaleString("en-UG");
+
+/* Demo/fallback menu — used until Supabase is configured, or if a
+   live fetch fails for any reason (offline, misconfigured keys, etc). */
+const DEMO_MENU = {
+  "Hot Coffee": [
+    {id:"esp", name:"Espresso", desc:"Double shot, dark & syrupy.", price:6000, img:"https://commons.wikimedia.org/wiki/Special:FilePath/A_cup_of_espresso.jpg?width=400"},
+    {id:"cap", name:"Cappuccino", desc:"Equal parts espresso, milk, foam.", price:9000, img:"https://commons.wikimedia.org/wiki/Special:FilePath/Cappuccino.jpg?width=400"},
+    {id:"lat", name:"Nevo Latte", desc:"Silky steamed milk, light art.", price:10000, img:"https://commons.wikimedia.org/wiki/Special:FilePath/Cafe_Latte.jpg?width=400"},
+    {id:"ame", name:"Americano", desc:"Espresso, long pour of hot water.", price:7000, img:"https://commons.wikimedia.org/wiki/Special:FilePath/A_small_cup_of_coffee.JPG?width=400"},
+  ],
+  "Cold Brews": [
+    {id:"ice", name:"Iced Latte", desc:"Chilled espresso over milk & ice.", price:11000, img:"https://commons.wikimedia.org/wiki/Special:FilePath/Iced_americano.jpg?width=400"},
+    {id:"cb", name:"Cold Brew", desc:"Steeped 18 hrs, smooth & bold.", price:10000, img:"https://commons.wikimedia.org/wiki/Special:FilePath/Iced_cold_brew_coffee.jpg?width=400"},
+  ],
+  "Fresh Bakes": [
+    {id:"cro", name:"Butter Croissant", desc:"Flaky, baked every morning.", price:8000, img:"https://commons.wikimedia.org/wiki/Special:FilePath/Croissant.jpg?width=400"},
+    {id:"muf", name:"Chocolate Muffin", desc:"Dark chocolate chunks.", price:7000, img:"https://commons.wikimedia.org/wiki/Special:FilePath/Chocolate_Muffin.jpg?width=400"},
+    {id:"ban", name:"Banana Bread", desc:"Moist slice, walnut top.", price:6000, img:"https://commons.wikimedia.org/wiki/Special:FilePath/Freshly_baked_banana_bread.jpg?width=400"},
+  ],
+  "Light Bites": [
+    {id:"sw", name:"Chicken Sandwich", desc:"Grilled chicken, herb mayo.", price:15000, img:"https://commons.wikimedia.org/wiki/Special:FilePath/Chicken_Sandwich_-_Oxford_Bookstore_-_Kolkata_2015-10-11_5950.JPG?width=400"},
+    {id:"avo", name:"Avocado Toast", desc:"Sourdough, chili flakes, lime.", price:12000, img:"https://commons.wikimedia.org/wiki/Special:FilePath/Colorful_Avocado_Toast_with_Onion%2C_Tomato%2C_and_Lemon_on_Sourdough_Bread.jpg?width=400"},
+  ],
+};
+
+let MENU = DEMO_MENU;          // active menu (replaced by live data if available)
+let SETTINGS = {               // active settings (replaced by live data if available)
+  mtn_momo_code: CFG.FALLBACK_MOMO_CODE || "TBD",
+  airtel_money_code: CFG.FALLBACK_AIRTEL_CODE || "TBD",
+  whatsapp_number: CFG.WHATSAPP_NUMBER || "256700000000",
+  pickup_address: CFG.PICKUP_ADDRESS || "Nevo Coffee & Co., Kampala",
+};
+let cart = {}; // id -> {item, qty}
+
+/* ---------------- Live data loading ---------------- */
+async function loadMenu(){
+  if(!SUPABASE_READY) return;
+  try{
+    const { data, error } = await sb
+      .from("menu_items")
+      .select("*")
+      .eq("is_available", true)
+      .order("category").order("sort_order");
+    if(error || !data || data.length === 0) throw error || new Error("empty menu");
+
+    const grouped = {};
+    data.forEach(row => {
+      if(!grouped[row.category]) grouped[row.category] = [];
+      grouped[row.category].push({
+        id: row.id, name: row.name, desc: row.description || "",
+        price: row.price_ugx, img: row.image_url || "",
+      });
+    });
+    MENU = grouped;
+  }catch(err){
+    console.warn("Live menu unavailable, using demo menu:", err);
+    MENU = DEMO_MENU;
+  }
+}
+
+async function loadSettings(){
+  if(!SUPABASE_READY) return;
+  try{
+    const { data, error } = await sb.from("settings").select("key,value");
+    if(error || !data) throw error || new Error("no settings");
+    data.forEach(row => { SETTINGS[row.key] = row.value; });
+  }catch(err){
+    console.warn("Live settings unavailable, using fallback values:", err);
+  }
+}
+
+/* ---------------- Menu rendering ---------------- */
+function renderMenu(){
+  const tabs = document.getElementById("tabs");
+  const wrap = document.getElementById("menuWrap");
+  tabs.innerHTML = "";
+  wrap.innerHTML = "";
+  const cats = Object.keys(MENU);
+
+  cats.forEach((cat, i) => {
+    const tab = document.createElement("div");
+    tab.className = "tab" + (i===0 ? " active" : "");
+    tab.textContent = cat;
+    tab.onclick = () => {
+      document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+      tab.classList.add("active");
+      document.getElementById("group-"+i).scrollIntoView({behavior:"smooth", block:"start"});
+    };
+    tabs.appendChild(tab);
+  });
+
+  cats.forEach((cat, i) => {
+    const group = document.createElement("div");
+    group.className = "menu-group";
+    group.id = "group-"+i;
+    group.innerHTML = `<div class="menu-group-title">${cat}</div>`;
+    const grid = document.createElement("div");
+    grid.className = "grid";
+    MENU[cat].forEach(item => {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.onclick = () => addToCart(item);
+      card.innerHTML = `
+        <div class="card-img">
+          <img src="${item.img}" alt="${item.name}" loading="lazy">
+          <div class="card-add">+</div>
+        </div>
+        <div class="card-body">
+          <div class="card-name">${item.name}</div>
+          <div class="card-desc">${item.desc}</div>
+          <div class="card-price">${money(item.price)}</div>
+        </div>`;
+      grid.appendChild(card);
+    });
+    group.appendChild(grid);
+    wrap.appendChild(group);
+  });
+}
+
+/* ---------------- Cart ---------------- */
+function addToCart(item){
+  if(!cart[item.id]) cart[item.id] = {item, qty:0};
+  cart[item.id].qty += 1;
+  updateCartUI();
+  pulseCartBtn();
+}
+function changeQty(id, delta){
+  if(!cart[id]) return;
+  cart[id].qty += delta;
+  if(cart[id].qty <= 0) delete cart[id];
+  updateCartUI();
+}
+function pulseCartBtn(){
+  const btn = document.querySelector(".cart-btn");
+  btn.style.transform = "scale(1.06)";
+  setTimeout(()=> btn.style.transform = "scale(1)", 120);
+}
+
+function cartTotal(){
+  return Object.values(cart).reduce((s,c)=> s + c.item.price*c.qty, 0);
+}
+function cartCount(){
+  return Object.values(cart).reduce((s,c)=> s + c.qty, 0);
+}
+
+function updateCartUI(){
+  document.getElementById("cartCount").textContent = cartCount();
+  document.getElementById("cartTotal").textContent = money(cartTotal());
+  document.getElementById("checkoutBtn").disabled = cartCount() === 0;
+
+  const body = document.getElementById("drawerBody");
+  if(cartCount() === 0){
+    body.innerHTML = `<div class="cart-empty">Your cart is empty.<br>Tap any item on the menu to add it.</div>`;
+    return;
+  }
+  body.innerHTML = "";
+  Object.values(cart).forEach(({item, qty}) => {
+    const row = document.createElement("div");
+    row.className = "cart-item";
+    row.innerHTML = `
+      <img src="${item.img}" alt="${item.name}">
+      <div class="cart-item-info">
+        <div class="cart-item-name">${item.name}</div>
+        <div class="cart-item-price">${money(item.price)}</div>
+        <div class="qty-control">
+          <button class="qty-btn" onclick="changeQty('${item.id}',-1)">−</button>
+          <span class="qty-val">${qty}</span>
+          <button class="qty-btn" onclick="changeQty('${item.id}',1)">+</button>
+        </div>
+      </div>`;
+    body.appendChild(row);
+  });
+}
+
+function openCart(){
+  document.getElementById("drawer").classList.add("show");
+  document.getElementById("scrim").classList.add("show");
+}
+function closeCart(){
+  document.getElementById("drawer").classList.remove("show");
+  document.getElementById("scrim").classList.remove("show");
+}
+
+/* ---------------- Checkout ---------------- */
+let fulfilment = "pickup";
+let payMethod = "momo";
+
+function payInstructionsHTML(){
+  if(payMethod === "cash"){
+    return `<div class="pay-instructions">Pay in cash when your order is ${fulfilment==='pickup' ? 'ready for pickup' : 'delivered'}. Please have the exact amount if possible.</div>`;
+  }
+  if(payMethod === "card"){
+    return `<div class="pay-instructions">Card payments are coming soon. Please choose Mobile Money or Cash for now.</div>`;
+  }
+  const label = payMethod === "momo" ? "MTN MoMo Pay" : "Airtel Money";
+  const code = payMethod === "momo" ? SETTINGS.mtn_momo_code : SETTINGS.airtel_money_code;
+  return `
+    <div class="pay-instructions">
+      Send <b>${money(cartTotal())}</b> to the ${label} merchant code below, then tap "Place order". We'll confirm your payment and start preparing right away.
+      <div class="code-row">
+        <span>${label} code</span>
+        <b id="payCode">${code}</b>
+        <button type="button" class="copy-btn" onclick="copyPayCode()">Copy</button>
+      </div>
+    </div>`;
+}
+
+function copyPayCode(){
+  const code = document.getElementById("payCode").textContent;
+  navigator.clipboard?.writeText(code);
+}
+
+function openCheckout(){
+  const modal = document.getElementById("checkoutModal");
+  const cardDisabled = true; // Phase 1 (Flutterwave/Pesapal) not live yet
+  modal.innerHTML = `
+    <h3>Almost there</h3>
+    <div class="sub">${cartCount()} item${cartCount()>1?"s":""} · ${money(cartTotal())}</div>
+
+    <div class="fulfil-toggle">
+      <div class="fulfil-opt ${fulfilment==='pickup'?'selected':''}" id="fp-pickup">Pickup at Nevo</div>
+      <div class="fulfil-opt ${fulfilment==='delivery'?'selected':''}" id="fp-delivery">Deliver to me</div>
+    </div>
+
+    <div class="field"><label>Full name</label><input id="ckName" type="text" placeholder="e.g. Aisha Namutebi"></div>
+    <div class="field"><label>Phone number</label><input id="ckPhone" type="tel" placeholder="07XX XXX XXX"></div>
+    <div class="field" id="addrField" style="display:${fulfilment==='delivery'?'block':'none'}">
+      <label>Delivery address</label>
+      <textarea id="ckAddr" placeholder="Street, area, landmark"></textarea>
+    </div>
+
+    <div class="field">
+      <label>Pay with</label>
+      <div class="pay-options">
+        <label class="pay-opt ${payMethod==='momo'?'selected':''}" id="po-momo"><input type="radio" name="pay" ${payMethod==='momo'?'checked':''}><span class="pay-icon">📱</span> MTN Mobile Money</label>
+        <label class="pay-opt ${payMethod==='airtel'?'selected':''}" id="po-airtel"><input type="radio" name="pay" ${payMethod==='airtel'?'checked':''}><span class="pay-icon">📱</span> Airtel Money</label>
+        <label class="pay-opt ${payMethod==='cash'?'selected':''}" id="po-cash"><input type="radio" name="pay" ${payMethod==='cash'?'checked':''}><span class="pay-icon">💵</span> Cash on ${fulfilment==='pickup'?'pickup':'delivery'}</label>
+        <label class="pay-opt ${payMethod==='card'?'selected':''}" id="po-card" style="opacity:${cardDisabled?'0.5':'1'}"><input type="radio" name="pay" ${payMethod==='card'?'checked':''} ${cardDisabled?'disabled':''}><span class="pay-icon">💳</span> Card (coming soon)</label>
+      </div>
+    </div>
+
+    <div id="payInstructions">${payInstructionsHTML()}</div>
+
+    <button class="btn-primary" id="placeOrderBtn" onclick="placeOrder()">Place order · ${money(cartTotal())}</button>
+    <div class="disclaimer">${SUPABASE_READY ? "Your order is sent straight to Nevo's dashboard. Payment is confirmed manually by staff once received." : "Demo mode — Supabase isn't connected yet, so this order is saved locally only, not sent to Nevo."}</div>
+  `;
+  document.getElementById("checkoutScrim").classList.add("show");
+  wireCheckoutEvents();
+}
+
+function wireCheckoutEvents(){
+  document.getElementById("fp-pickup").onclick = () => { fulfilment="pickup"; openCheckout(); };
+  document.getElementById("fp-delivery").onclick = () => { fulfilment="delivery"; openCheckout(); };
+  ["momo","airtel","card","cash"].forEach(m=>{
+    const el = document.getElementById("po-"+m);
+    if(!el) return;
+    el.onclick = (e) => {
+      if(el.querySelector("input").disabled) return;
+      payMethod=m;
+      document.querySelectorAll(".pay-opt").forEach(p=>p.classList.remove("selected"));
+      el.classList.add("selected");
+      document.getElementById("payInstructions").innerHTML = payInstructionsHTML();
+    };
+  });
+}
+
+function closeCheckout(){
+  document.getElementById("checkoutScrim").classList.remove("show");
+}
+
+let lastOrder = null;
+
+function randomOrderCode(){
+  return "NV" + Math.floor(1000 + Math.random()*9000);
+}
+
+async function placeOrder(){
+  const btn = document.getElementById("placeOrderBtn");
+  const name = document.getElementById("ckName").value.trim() || "Guest";
+  const phone = document.getElementById("ckPhone").value.trim() || "Not provided";
+  const addr = fulfilment==="delivery" ? (document.getElementById("ckAddr").value.trim() || "Not provided") : SETTINGS.pickup_address;
+
+  if(fulfilment === "delivery" && addr === "Not provided"){
+    alert("Please add a delivery address.");
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "Placing order…";
+
+  const orderCode = randomOrderCode();
+  const lines = Object.values(cart).map(c => `${c.qty}x ${c.item.name}`).join(", ");
+  const payLabel = {momo:"MTN Mobile Money", airtel:"Airtel Money", cash:"Cash", card:"Card"}[payMethod];
+  const total = cartTotal();
+
+  let savedToServer = false;
+
+  if(SUPABASE_READY){
+    try{
+      const { data: orderRow, error: orderErr } = await sb.from("orders").insert({
+        order_code: orderCode,
+        customer_name: name,
+        customer_phone: phone,
+        fulfilment,
+        delivery_address: fulfilment === "delivery" ? addr : null,
+        subtotal_ugx: total,
+        total_ugx: total,
+        payment_method: payMethod,
+        payment_status: "pending",
+        order_status: "received",
+      }).select().single();
+      if(orderErr) throw orderErr;
+
+      const itemRows = Object.values(cart).map(c => ({
+        order_id: orderRow.id,
+        menu_item_id: typeof c.item.id === "string" && c.item.id.length === 36 ? c.item.id : null,
+        item_name_snapshot: c.item.name,
+        unit_price_ugx: c.item.price,
+        qty: c.qty,
+        line_total_ugx: c.item.price * c.qty,
+      }));
+      const { error: itemsErr } = await sb.from("order_items").insert(itemRows);
+      if(itemsErr) throw itemsErr;
+
+      savedToServer = true;
+    }catch(err){
+      console.error("Could not save order to Supabase, falling back to local confirmation:", err);
+    }
+  }
+
+  lastOrder = {orderId: orderCode, name, phone, addr, payLabel, payMethod, lines, total, fulfilment, savedToServer};
+  cart = {};
+  updateCartUI();
+  showConfirmation();
+}
+
+function showConfirmation(){
+  const modal = document.getElementById("checkoutModal");
+  const o = lastOrder;
+  const paymentNote = o.payMethod === "cash"
+    ? `Pay ${money(o.total)} cash ${o.fulfilment==='pickup' ? 'on pickup' : 'on delivery'}.`
+    : `We're waiting to confirm your ${o.payLabel} payment — this is usually quick.`;
+
+  modal.innerHTML = `
+    <div class="confirm-icon">✓</div>
+    <div class="confirm-id">Order ${o.orderId}</div>
+    <div class="sub" style="text-align:center;">${o.fulfilment==='pickup' ? "We'll have it ready in ~15 min once payment is confirmed." : "A rider will be assigned once payment is confirmed."}</div>
+    <div class="pending-badge" style="margin-left:auto;margin-right:auto;">● Payment pending confirmation</div>
+
+    <div class="field" style="margin-top:18px;">
+      <label>Summary</label>
+      <div style="font-size:12.5px; background:var(--parchment-2); border-radius:10px; padding:12px; line-height:1.6;">
+        ${o.lines}<br>
+        <b>${money(o.total)}</b> · ${o.payLabel}<br>
+        ${o.fulfilment === 'delivery' ? o.addr : o.addr}
+      </div>
+      <div style="font-size:11.5px; color:#6b5d4f; margin-top:8px;">${paymentNote}</div>
+    </div>
+
+    <a class="whatsapp-btn" href="${buildWhatsAppLink(o)}" target="_blank">
+      📲 Notify us on WhatsApp
+    </a>
+    <div class="disclaimer">${o.savedToServer ? "Your order has been sent to Nevo's dashboard." : "Demo mode — this order was not sent to Nevo (Supabase not connected yet). Tap the WhatsApp button below to notify them directly."}</div>
+  `;
+}
+
+function buildWhatsAppLink(o){
+  const msg = `New order ${o.orderId} from ${o.name} (${o.phone})%0A${o.lines}%0ATotal: ${money(o.total)} — ${o.payLabel}%0A${o.fulfilment === 'delivery' ? 'Deliver to: ' + o.addr : 'PICKUP at ' + o.addr}`;
+  return `https://wa.me/${SETTINGS.whatsapp_number}?text=${msg}`;
+}
+
+document.getElementById("checkoutScrim").addEventListener("click", (e)=>{
+  if(e.target.id === "checkoutScrim") closeCheckout();
+});
+
+/* ---------------- Boot ---------------- */
+(async function boot(){
+  await Promise.all([loadMenu(), loadSettings()]);
+  renderMenu();
+  updateCartUI();
+})();
+</script>
+</body>
+</html>
