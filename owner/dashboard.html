@@ -89,6 +89,16 @@
   .btn-status.secondary{ background:var(--parchment-2); color:var(--espresso); border:1px solid var(--line); }
   .empty-state{ text-align:center; padding:60px 20px; color:#8a7a68; font-size:13px; }
   .refresh-note{ font-size:11px; color:#8a7a68; text-align:center; margin-top:10px; }
+  .rider-assign{ margin-top:8px; display:flex; gap:6px; align-items:center; }
+  .rider-assign select{
+    flex:1; padding:7px 8px; border:1px solid var(--line); border-radius:8px;
+    background:var(--parchment-2); font-size:12px; font-family:inherit;
+  }
+  .rider-assign button{
+    background:var(--espresso); color:var(--cream); border:none; border-radius:100px;
+    padding:7px 12px; font-size:11.5px; font-weight:700; cursor:pointer;
+  }
+  .rider-assigned-tag{ font-size:12px; color:var(--sage); font-weight:600; margin-top:6px; }
 </style>
 </head>
 <body>
@@ -112,6 +122,10 @@
     <div class="field"><label>Password</label><input id="loginPassword" type="password" placeholder="••••••••"></div>
     <button class="btn-primary" id="loginBtn" onclick="signIn()">Sign in</button>
     <div class="error-msg" id="loginError"></div>
+    <div class="error-msg" id="resetMsg" style="color:var(--sage); display:none;"></div>
+    <div style="text-align:center; margin-top:14px;">
+      <a href="javascript:sendPasswordReset()" style="font-size:12px; color:#6b5d4f;">Forgot password?</a>
+    </div>
   </div>
 
   <!-- ---------------- Dashboard (owner) ---------------- -->
@@ -147,10 +161,34 @@ let currentFilter = "all";
 let orders = [];
 let currentRole = null;
 let currentStaffName = null;
+let ridersList = [];
 
 if(!SUPABASE_READY){
   document.getElementById("configWarning").style.display = "block";
   document.getElementById("loginBtn").disabled = true;
+}
+
+async function sendPasswordReset(){
+  const email = document.getElementById("loginEmail").value.trim();
+  const msgEl = document.getElementById("resetMsg");
+  const errEl = document.getElementById("loginError");
+  errEl.style.display = "none";
+
+  if(!email){
+    errEl.textContent = "Type your email in the box above first, then tap 'Forgot password?'";
+    errEl.style.display = "block";
+    return;
+  }
+  if(!SUPABASE_READY) return;
+
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + "/owner/reset-password.html",
+  });
+
+  msgEl.textContent = error
+    ? "Could not send reset email: " + error.message
+    : "Check your email for a reset link (also check spam/junk).";
+  msgEl.style.display = "block";
 }
 
 async function signIn(){
@@ -218,9 +256,45 @@ function showDashboard(){
     setInterval(loadKitchenQueue, 20000);
   }else{
     document.getElementById("dashView").style.display = "block";
+    loadRiders();
     loadOrders();
     subscribeToOrders();
   }
+}
+
+async function loadRiders(){
+  const { data, error } = await sb.from("riders").select("id, full_name, phone").eq("is_active", true);
+  if(error){ console.error(error); return; }
+  ridersList = data || [];
+}
+
+function riderAssignmentHTML(o){
+  if(o.fulfilment !== "delivery" || o.payment_status !== "paid") return "";
+  if(["completed","cancelled"].includes(o.order_status)) return "";
+
+  if(o.rider_id){
+    const rider = ridersList.find(r => r.id === o.rider_id);
+    return `<div class="rider-assigned-tag">🛵 Assigned to ${rider ? rider.full_name : "rider"}</div>`;
+  }
+
+  if(ridersList.length === 0){
+    return `<div class="rider-assigned-tag" style="color:#8a7a68;">No active riders yet — add one in Supabase → riders table.</div>`;
+  }
+
+  const options = ridersList.map(r => `<option value="${r.id}">${r.full_name}</option>`).join("");
+  return `
+    <div class="rider-assign">
+      <select id="riderSelect-${o.id}">${options}</select>
+      <button onclick="assignRider('${o.id}')">Assign</button>
+    </div>`;
+}
+
+async function assignRider(orderId){
+  const select = document.getElementById("riderSelect-" + orderId);
+  const riderId = select.value;
+  const { error } = await sb.from("orders").update({ rider_id: riderId }).eq("id", orderId);
+  if(error){ alert("Could not assign rider: " + error.message); return; }
+  loadOrders();
 }
 
 async function loadOrders(){
@@ -289,6 +363,7 @@ function renderOrders(){
           <b>${o.customer_name}</b> · ${o.customer_phone}<br>
           ${items}<br>
           <b>${money(o.total_ugx)}</b> · ${o.payment_method}${o.fulfilment==='delivery' ? '<br>📍 ' + o.delivery_address : ''}
+          ${riderAssignmentHTML(o)}
         </div>
         <div class="order-actions">
           ${o.payment_status === 'pending' ? `<button class="btn-sm btn-mark-paid" onclick="markPaid('${o.id}')">✓ Mark payment received</button>` : ''}
